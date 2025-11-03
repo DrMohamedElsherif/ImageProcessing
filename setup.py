@@ -1,8 +1,6 @@
+# setup.py
 # ============================================================
 # 🧩 Cross-Platform PyTorch Environment Setup (GPU/CPU Adaptive)
-# ============================================================
-# Works on macOS (MPS), Linux (CUDA), or Windows (CPU fallback)
-# Automatically installs compatible dependencies and exports requirements.txt
 # ============================================================
 
 import os
@@ -10,6 +8,12 @@ import sys
 import platform
 import subprocess
 
+# --- Lazy imports (to make them available to other scripts) ---
+import importlib
+
+# ============================================================
+# 📦 INSTALL HELPERS
+# ============================================================
 def install(*packages):
     """Quietly install one or more pip packages."""
     subprocess.run(
@@ -28,41 +32,42 @@ def detect_platform():
     else:
         return "unknown"
 
+# ============================================================
+# 🧠 DEVICE SELECTION
+# ============================================================
+def get_best_device():
+    """Return the best available device: CUDA, MPS, or CPU."""
+    import torch
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+# ============================================================
+# 🚀 SETUP FUNCTION
+# ============================================================
 def main():
+    """Set up the environment and verify installation."""
     print("🚀 Setting up environment for PyTorch with GPU/CPU support...\n")
 
     system = detect_platform()
     print(f"💻 Detected OS: {system.upper()}")
 
-    # ------------------------------------------------------------
-    # 🔧 Install PyTorch based on OS
-    # ------------------------------------------------------------
-    print("\n📦 Installing PyTorch and related libraries...")
-
+    print("\n📦 Installing PyTorch and dependencies...")
     if system == "mac":
-        # Apple Silicon / Intel Mac — MPS backend
         install("torch", "torchvision", "torchaudio")
-
     elif system == "linux":
-        # Linux — CUDA 12.1 build (compatible with most modern GPUs)
         install(
             "torch==2.4.1+cu121",
             "torchvision==0.19.1+cu121",
             "torchaudio==2.4.1+cu121",
             "--extra-index-url", "https://download.pytorch.org/whl/cu121"
         )
-
-    elif system == "windows":
-        # Windows — CPU-only build (since CUDA setup can vary)
-        install("torch", "torchvision", "torchaudio")
-
     else:
-        print("⚠️ Unknown system type; installing CPU-only version of PyTorch.")
         install("torch", "torchvision", "torchaudio")
 
-    # ------------------------------------------------------------
-    # 📚 Supporting packages
-    # ------------------------------------------------------------
     print("\n📦 Installing supporting libraries...")
     install(
         "numpy<2.0,>=1.24",
@@ -73,18 +78,13 @@ def main():
         "streamlit>=1.30,<1.42",
     )
 
-    # ------------------------------------------------------------
-    # ✅ Verify Installation
-    # ------------------------------------------------------------
-    print("\n🔍 Verifying environment setup...\n")
+    print("\n🔍 Verifying installation...\n")
     import torch, torchvision, numpy, PIL
-
     print(f"✅ PyTorch: {torch.__version__}")
     print(f"✅ TorchVision: {torchvision.__version__}")
     print(f"✅ NumPy: {numpy.__version__}")
     print(f"✅ Pillow: {PIL.__version__}")
 
-    # Hardware acceleration check
     if system == "mac":
         print(f"✅ MPS available: {torch.backends.mps.is_available()}")
     elif system == "linux":
@@ -92,22 +92,28 @@ def main():
     else:
         print("✅ CPU-only build verified.")
 
-    # ------------------------------------------------------------
-    # 📝 Export installed packages
-    # ------------------------------------------------------------
-    print("\n📝 Exporting exact versions to requirements.txt...")
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "freeze"],
-        capture_output=True,
-        text=True
-    )
+    print("\n📝 Exporting requirements.txt...")
+    req = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True)
+    with open("requirements.txt", "w") as f:
+        f.write(req.stdout)
+    print("✅ requirements.txt saved.\n🎉 Setup complete!")
 
-    req_path = os.path.join(os.getcwd(), "requirements.txt")
-    with open(req_path, "w") as f:
-        f.write(result.stdout)
+# ============================================================
+# 🌍 SHARED IMPORTS (for other scripts)
+# ============================================================
+# Dynamically import the libraries only once
+try:
+    torch = importlib.import_module("torch")
+    np = importlib.import_module("numpy")
+    Image = importlib.import_module("PIL.Image").Image
+    PIL = importlib.import_module("PIL")
+    transforms = importlib.import_module("torchvision.transforms")
+except ModuleNotFoundError:
+    print("⚠️ Missing modules. Run `python setup.py` first to install dependencies.")
+    raise
 
-    print(f"✅ requirements.txt saved at: {req_path}")
-    print("\n🎉 Setup complete! Your environment is ready.\n")
-
+# ============================================================
+# 🧩 ENTRY POINT
+# ============================================================
 if __name__ == "__main__":
     main()
