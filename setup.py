@@ -102,15 +102,30 @@ def main():
 # 🌍 SHARED IMPORTS (for other scripts)
 # ============================================================
 # Dynamically import the libraries only once
+# 🌍 SHARED IMPORTS (for other scripts)
 try:
+    import importlib
     torch = importlib.import_module("torch")
     np = importlib.import_module("numpy")
-    Image = importlib.import_module("PIL.Image").Image
     PIL = importlib.import_module("PIL")
+    Image = importlib.import_module("PIL.Image")  # PIL.Image module
     transforms = importlib.import_module("torchvision.transforms")
+    random = importlib.import_module("random")
+
+    # KaggleHub optional
+    try:
+        kagglehub = importlib.import_module("kagglehub")
+    except ModuleNotFoundError:
+        print("📦 kagglehub not found. Installing quietly...")
+        import subprocess, sys
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "kagglehub"], check=True)
+        kagglehub = importlib.import_module("kagglehub")
+
+    import shutil
 except ModuleNotFoundError:
     print("⚠️ Missing modules. Run `python setup.py` first to install dependencies.")
     raise
+
 
 # ============================================================
 # 🧩 ENTRY POINT
