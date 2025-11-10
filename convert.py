@@ -1,19 +1,16 @@
 # convert.py
+# Command Line Syntax: python convert.py <input_image_path> <output_image_filename>
 
-import os
 import sys
-from setup import torch, PIL, transforms, get_best_device
-import torch.nn as nn
+from setup import torch, PIL, transforms, get_best_device, nn, make_output_path
 
-def color_to_gray(input_path, output_path, output_base_folder="./Outputs"):
+def color_to_gray(input_path, output_filename, output_base_folder="./Outputs"):
     device = get_best_device()
     print(f"🔧 Using device: {device}")
 
-    input_folder_name = os.path.basename(os.path.dirname(input_path))
-    output_folder = os.path.join(output_base_folder, f"Output_{input_folder_name}")
-    os.makedirs(output_folder, exist_ok=True)
-    output_path = os.path.join(output_folder, os.path.basename(output_path))
+    output_path = make_output_path(input_path, output_filename, output_base_folder)
 
+    # Define 1x1 conv weights for grayscale conversion
     weights = torch.tensor([[[[0.299]], [[0.587]], [[0.114]]]], device=device)
     conv = nn.Conv2d(3, 1, kernel_size=1, bias=False).to(device)
     conv.weight.data = weights

@@ -2,13 +2,10 @@
 # ============================================================
 # 🧩 Cross-Platform PyTorch Environment Setup (GPU/CPU Adaptive)
 # ============================================================
-
 import os
 import sys
 import platform
 import subprocess
-
-# --- Lazy imports (to make them available to other scripts) ---
 import importlib
 
 # ============================================================
@@ -44,6 +41,16 @@ def get_best_device():
         return torch.device("mps")
     else:
         return torch.device("cpu")
+    
+# -----------------------------
+# Helper for output path
+# -----------------------------
+def make_output_path(input_path, output_filename, output_base_folder="./Outputs"):
+    """Create output folder and return full path for saving processed images."""
+    input_folder_name = os.path.basename(os.path.dirname(input_path))
+    output_folder = os.path.join(output_base_folder, f"Output_{input_folder_name}")
+    os.makedirs(output_folder, exist_ok=True)
+    return os.path.join(output_folder, os.path.basename(output_filename))
 
 # ============================================================
 # 🚀 SETUP FUNCTION
@@ -102,10 +109,11 @@ def main():
 # 🌍 SHARED IMPORTS (for other scripts)
 # ============================================================
 # Dynamically import the libraries only once
-# 🌍 SHARED IMPORTS (for other scripts)
 try:
     import importlib
     torch = importlib.import_module("torch")
+    F = torch.nn.functional 
+    nn = torch.nn
     np = importlib.import_module("numpy")
     PIL = importlib.import_module("PIL")
     Image = importlib.import_module("PIL.Image")  # PIL.Image module
@@ -125,7 +133,6 @@ try:
 except ModuleNotFoundError:
     print("⚠️ Missing modules. Run `python setup.py` first to install dependencies.")
     raise
-
 
 # ============================================================
 # 🧩 ENTRY POINT
