@@ -114,10 +114,15 @@ All resulting images will appear in: ``` Outputs/Output_sample_images/ ```
 
 ---
 
-**Author:** Mohamed Elsherif<b></b>
-**Course:** Image Processing /
+<div>
+    
+**Author:** Mohamed Elsherif 
+
+**Course:** Image Processing
 
 **Date:** 11.11.2025 
+    
+</div>
 
 ---
 
