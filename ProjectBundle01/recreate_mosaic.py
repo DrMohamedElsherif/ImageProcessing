@@ -1,13 +1,20 @@
 # recreate_mosaic.py
 # Command Line Syntax: python recreate_mosaic.py <input_image_path> <output_image_name> <target_tiles>
+# My usage: python recreate_mosaic.py sample_images/MariaVonLinden.jpg MariaVonLinden_mosaic.jpg 400
 
+import os
 import sys
+
+# Get script directory for absolute paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(SCRIPT_DIR)
+
 from setup import torch, F, transforms, Image, get_best_device, make_output_path
 
-def recreate_mosaic_conv2d(input_image_path, output_filename, target_tiles, output_base_folder="./Outputs"):
+def recreate_mosaic_conv2d(input_image_path, output_filename, target_tiles, output_base_folder=None):
     img = Image.open(input_image_path).convert("RGB")
     width, height = img.size
-    print(f"📷 Loaded image: {input_image_path} ({width}x{height})")
+    print(f"Loaded image: {input_image_path} ({width}x{height})")
 
     aspect_ratio = width / height
     num_rows = int((target_tiles / aspect_ratio) ** 0.5)
@@ -16,7 +23,7 @@ def recreate_mosaic_conv2d(input_image_path, output_filename, target_tiles, outp
     print(f"🔧 Grid: {num_cols}×{num_rows}, Tile: {tile_size}×{tile_size}")
 
     device = get_best_device()
-    print(f"⚙️ Using device: {device}")
+    print(f"Using device: {device}")
 
     img_tensor = transforms.ToTensor()(img).unsqueeze(0).to(device)
     kernel = torch.ones((img_tensor.shape[1], 1, tile_size, tile_size), device=device) / (tile_size ** 2)
@@ -26,8 +33,8 @@ def recreate_mosaic_conv2d(input_image_path, output_filename, target_tiles, outp
 
     output_path = make_output_path(input_image_path, output_filename, output_base_folder)
     mosaic_img.save(output_path)
-    print(f"✅ Mosaic saved to: {output_path}")
-    print(f"📏 Final grid: {num_cols} × {num_rows} → {num_cols*num_rows} total tiles")
+    print(f"Mosaic saved to: {output_path}")
+    print(f"Final grid: {num_cols} × {num_rows} → {num_cols*num_rows} total tiles")
 
 if __name__ == "__main__":
     if len(sys.argv) < 4:

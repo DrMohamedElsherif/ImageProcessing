@@ -8,6 +8,9 @@ import platform
 import subprocess
 import importlib
 
+# Get script directory for absolute paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ============================================================
 # 📦 INSTALL HELPERS
 # ============================================================
@@ -45,8 +48,11 @@ def get_best_device():
 # -----------------------------
 # Helper for output path
 # -----------------------------
-def make_output_path(input_path, output_filename, output_base_folder="./Outputs"):
+def make_output_path(input_path, output_filename, output_base_folder=None):
     """Create output folder and return full path for saving processed images."""
+    if output_base_folder is None:
+        output_base_folder = os.path.join(SCRIPT_DIR, "Outputs")
+    
     input_folder_name = os.path.basename(os.path.dirname(input_path))
     output_folder = os.path.join(output_base_folder, f"Output_{input_folder_name}")
     os.makedirs(output_folder, exist_ok=True)
@@ -101,7 +107,8 @@ def main():
 
     print("\n📝 Exporting requirements.txt...")
     req = subprocess.run([sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True)
-    with open("requirements.txt", "w") as f:
+    requirements_path = os.path.join(SCRIPT_DIR, "requirements.txt")
+    with open(requirements_path, "w") as f:
         f.write(req.stdout)
     print("✅ requirements.txt saved.\n🎉 Setup complete!")
 

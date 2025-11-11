@@ -1,10 +1,17 @@
 # convert.py
 # Command Line Syntax: python convert.py <input_image_path> <output_image_filename>
+# My usage: python convert.py sample_images/MariaVonLinden.jpg MariaVonLinden_gray.jpg
 
+import os
 import sys
+
+# Get script directory for absolute paths
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(SCRIPT_DIR)
+
 from setup import torch, PIL, transforms, get_best_device, nn, make_output_path
 
-def color_to_gray(input_path, output_filename, output_base_folder="./Outputs"):
+def color_to_gray(input_path, output_filename, output_base_folder=None):
     device = get_best_device()
     print(f"🔧 Using device: {device}")
 
@@ -22,7 +29,7 @@ def color_to_gray(input_path, output_filename, output_base_folder="./Outputs"):
         gray_tensor = conv(img_tensor).squeeze(0).squeeze(0).cpu()
 
     transforms.ToPILImage()(gray_tensor).save(output_path)
-    print(f"✅ Saved grayscale image to: {output_path}")
+    print(f"Saved grayscale image to: {output_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
