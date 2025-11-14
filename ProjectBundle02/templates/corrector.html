@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>White Balance Correction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #f3f4f6; }
+        .img-frame { @apply rounded-xl shadow-md border border-gray-200 overflow-hidden; }
+    </style>
+</head>
+<body class="min-h-screen flex justify-center items-start py-10">
+
+<div class="bg-white w-full max-w-4xl p-8 rounded-2xl shadow-xl">
+
+    <h1 class="text-3xl font-extrabold text-center text-gray-800 mb-6">
+        White Balance Correction Tool
+    </h1>
+
+    <form id="wbForm" method="POST" enctype="multipart/form-data" class="space-y-6">
+
+        <div>
+            <label class="block mb-1 font-medium text-gray-700">Upload Image</label>
+            <input type="file" name="image"
+                   class="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                   required>
+        </div>
+
+        <input type="hidden" id="algorithmInput" name="algorithm" value="{{ method|default('') }}">
+
+        <label class="block font-medium text-gray-700">Choose Algorithm</label>
+        <div id="algo-cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            <div data-value="grey"
+                 class="algo-card cursor-pointer p-5 rounded-xl border-2 border-gray-300 bg-white hover:border-indigo-400 transition">
+                <h3 class="text-lg font-semibold text-gray-800">Grey-World</h3>
+                <p class="text-gray-600 text-sm">Assumes the average scene color should be neutral.</p>
+            </div>
+
+            <div data-value="white_patch"
+                 class="algo-card cursor-pointer p-5 rounded-xl border-2 border-gray-300 bg-white hover:border-indigo-400 transition">
+                <h3 class="text-lg font-semibold text-gray-800">White-Patch</h3>
+                <p class="text-gray-600 text-sm">Uses brightest pixels as reference white.</p>
+            </div>
+
+            <div data-value="grey_edge"
+                 class="algo-card cursor-pointer p-5 rounded-xl border-2 border-gray-300 bg-white hover:border-indigo-400 transition">
+                <h3 class="text-lg font-semibold text-gray-800">Grey-Edge</h3>
+                <p class="text-gray-600 text-sm">Uses edge gradients to estimate illumination.</p>
+            </div>
+
+        </div>
+
+        <button type="submit"
+            class="w-full py-3 bg-indigo-600 text-white font-semibold text-lg rounded-xl shadow hover:bg-indigo-700 transition">
+            Apply Correction
+        </button>
+    </form>
+
+    {% if result and input %}
+    <h2 class="text-2xl font-bold text-center text-gray-800 mt-10">Side-by-Side Comparison</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+
+        <div class="text-center relative">
+            <h3 class="mb-3 font-semibold text-gray-700">Original</h3>
+            <div class="img-frame">
+                <img src="{{ url_for('uploaded_file', filename=input) }}" class="w-full">
+            </div>
+        </div>
+
+        <div class="text-center relative">
+            <h3 class="mb-3 font-semibold text-gray-700">Corrected</h3>
+            <div class="img-frame">
+                <img src="{{ url_for('output_file', filename=result) }}" class="w-full">
+                <div class="absolute top-4 left-4 inline-flex items-center gap-3 px-3 py-1 rounded-full bg-black/60 text-white text-sm">
+                    <span class="font-semibold">{{ method }}</span>
+                    <span class="px-2 py-0.5 rounded-full text-xs bg-white/20">CPU</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+    const cards = document.querySelectorAll('.algo-card');
+    const input = document.getElementById('algorithmInput');
+    const form = document.getElementById('wbForm');
+
+    if(input.value) {
+        cards.forEach(card => {
+            if(card.dataset.value === input.value) {
+                card.classList.add("border-indigo-600", "bg-indigo-50", "shadow-lg");
+            }
+        });
+    }
+
+    cards.forEach(card => {
+        card.addEventListener('click', () => {
+            cards.forEach(c => c.classList.remove("border-indigo-600", "bg-indigo-50", "shadow-lg"));
+            card.classList.add("border-indigo-600", "bg-indigo-50", "shadow-lg");
+            input.value = card.dataset.value;
+        });
+    });
+
+    form.addEventListener('submit', e => {
+        if(!input.value){
+            e.preventDefault();
+            alert("Please select an algorithm before submitting.");
+        }
+    });
+</script>
+
+</body>
+</html>

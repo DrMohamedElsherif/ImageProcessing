@@ -72,3 +72,6 @@ urllib3==2.5.0
 wadler_lindig==0.1.7
 wheel==0.45.1
 wrapt==1.17.3
+opencv-python
+flask
+
