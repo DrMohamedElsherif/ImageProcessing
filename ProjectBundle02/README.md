@@ -3,6 +3,14 @@
 For sRGB images, pixel values are non-linear. Therefore, they would require preprocessing by conversion from sRGB to linear RGB before applying white balance corrections. After correction, we postprocess by converting back from linear RGB to sRGB.
 
 -----
+**2.**
+img1: main light source: moon, single light and indirect light. yes they are cues, the moon reflect light from the sun.
+img2: main light source: light polution from city in the background, multiple lights stars, tower and city. yes they are cues, light on the horizon.  
+img3: main light source: sun, waterfall reflected light. yes they are cues, sunbeams from the cource. 
+img4: main light sources: stars, multiple scources, no they are to many scources.xxw
+img5: main light source: flash in the clouds, multiple flash and stars. yes they are cues, areas in the clouds they reflect the flash. 
+
+-----
 
 **3.** 
 **Eye movements** fall into two functional categories: gaze-stabilization and gaze-shifting movements. Gaze-stabilization movements, which prevent images from slipping across the retina during head or body motion, rely on the vestibulo-ocular and optokinetic systems. Vestibulo-ocular movements (VOR) use vestibular input to produce rapid compensatory eye movements opposite the direction of head movement; they work best for fast, brief motions but diminish after prolonged rotation unless visual cues are present. Optokinetic movements, by contrast, stabilize vision in response to sustained motion of the visual field and produce optokinetic nystagmus—a combination of slow pursuit of moving scenery and fast resetting saccades.[1]
