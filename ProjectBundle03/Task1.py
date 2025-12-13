@@ -1,6 +1,5 @@
 """
-COMPREHENSIVE GRADIENT-BASED FAKE IMAGE DETECTION SYSTEM
-(No scoring system version - pure analysis only)
+GRADIENT-BASED REAL/FAKE IMAGE COMPARISON
 """
 
 import os
@@ -21,7 +20,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ============================================================================
-# PART 1: CORE GRADIENT UTILITIES (from provided code - enhanced)
+# CORE GRADIENT UTILITIES 
 # ============================================================================
 
 def read_image_rgb(path: Union[str, Path], target_size: Optional[Tuple[int, int]] = None) -> np.ndarray:
@@ -117,7 +116,7 @@ def normalize_for_vis(x: np.ndarray, percentile_range: Tuple[float, float] = (1,
 
 
 # ============================================================================
-# PART 2: COMPARISON METRICS (from provided code - enhanced)
+# COMPARISON METRICS 
 # ============================================================================
 
 class ComparisonMetrics:
@@ -201,7 +200,7 @@ class ComparisonMetrics:
 
 
 # ============================================================================
-# PART 3: STATISTICAL FEATURE EXTRACTION (from my code - enhanced)
+# STATISTICAL FEATURE EXTRACTION 
 # ============================================================================
 
 class StatisticalFeatureExtractor:
@@ -292,34 +291,207 @@ class StatisticalFeatureExtractor:
 
 
 # ============================================================================
-# PART 4: COMPREHENSIVE VISUALIZATION (simplified - no scoring system)
+# DETECTION 
+# ============================================================================
+
+class DetectionScorer:
+    """Score likelihood of image being AI-generated"""
+    
+    def __init__(self, weights: Optional[Dict] = None):
+        # Default weights for different feature categories
+        self.weights = weights or {
+            'gradient_stats': 0.35,
+            'color_stats': 0.25,
+            'comparison_metrics': 0.25,
+            'texture_features': 0.15
+        }
+    
+    def compute_detection_score(self, real_features: Dict, fake_features: Dict, 
+                                comparison_metrics: Dict) -> Dict:
+        """
+        Compute comprehensive detection score
+        
+        Returns:
+            Dictionary with overall score, component scores, and decision
+        """
+        scores = {}
+        
+        # 1. Gradient statistics differences
+        grad_score = self._compute_gradient_score(real_features, fake_features)
+        scores['gradient_score'] = grad_score
+        
+        # 2. Color statistics differences
+        color_score = self._compute_color_score(real_features, fake_features)
+        scores['color_score'] = color_score
+        
+        # 3. Comparison metrics
+        comp_score = self._compute_comparison_score(comparison_metrics)
+        scores['comparison_score'] = comp_score
+        
+        # 4. Texture/pattern differences
+        texture_score = self._compute_texture_score(real_features, fake_features)
+        scores['texture_score'] = texture_score
+        
+        # 5. Overall weighted score (0-100)
+        overall_score = (
+            grad_score * self.weights['gradient_stats'] +
+            color_score * self.weights['color_stats'] +
+            comp_score * self.weights['comparison_metrics'] +
+            texture_score * self.weights['texture_features']
+        ) * 100
+        
+        scores['overall_score'] = overall_score
+        
+        # 6. Decision with confidence levels
+        decision, confidence = self._make_decision(overall_score)
+        scores['decision'] = decision
+        scores['confidence'] = confidence
+        
+        return scores
+    
+    def _compute_gradient_score(self, real_feats: Dict, fake_feats: Dict) -> float:
+        """Score based on gradient feature differences"""
+        grad_keys = [k for k in real_feats.keys() if any(m in k for m in ['sobel', 'scharr', 'laplacian'])]
+        
+        if not grad_keys:
+            return 0.5  # Neutral score if no gradient features
+        
+        differences = []
+        for key in grad_keys:
+            if key in fake_feats:
+                diff = abs(real_feats[key] - fake_feats[key])
+                # Normalize by real value (avoid division by zero)
+                norm_diff = diff / (abs(real_feats[key]) + 1e-10)
+                differences.append(min(norm_diff, 1.0))  # Cap at 1.0
+        
+        if not differences:
+            return 0.5
+        
+        avg_diff = np.mean(differences)
+        # Convert to 0-1 score (higher = more likely fake)
+        return min(avg_diff * 2, 1.0)
+    
+    def _compute_color_score(self, real_feats: Dict, fake_feats: Dict) -> float:
+        """Score based on color statistics differences"""
+        color_keys = [k for k in real_feats.keys() if any(cs in k for cs in ['RGB', 'HSV', 'LAB'])]
+        
+        if not color_keys:
+            return 0.5
+        
+        differences = []
+        for key in color_keys:
+            if 'hist_' not in key and key in fake_feats:  # Exclude histogram features
+                real_val = real_feats[key]
+                fake_val = fake_feats[key]
+                
+                # Handle different scales for different features
+                if 'std' in key or 'variance' in key:
+                    diff = abs(real_val - fake_val) / (abs(real_val) + 1e-10)
+                else:
+                    diff = abs(real_val - fake_val) / max(abs(real_val), 1e-10)
+                
+                differences.append(min(diff, 1.0))
+        
+        if not differences:
+            return 0.5
+        
+        avg_diff = np.mean(differences)
+        return min(avg_diff * 1.5, 1.0)
+    
+    def _compute_comparison_score(self, metrics: Dict) -> float:
+        """Score based on direct comparison metrics"""
+        score_components = []
+        
+        # SSIM: lower = more different
+        if 'ssim' in metrics and not np.isnan(metrics['ssim']):
+            ssim_score = 1.0 - metrics['ssim']  # Convert to difference score
+            score_components.append(ssim_score)
+        
+        # Cosine similarity: lower = more different
+        if 'cosine_similarity' in metrics:
+            cos_score = 1.0 - ((metrics['cosine_similarity'] + 1) / 2)  # Convert -1..1 to 0..1
+            score_components.append(cos_score)
+        
+        # KL divergence: higher = more different
+        if 'histogram_kl' in metrics and not np.isnan(metrics['histogram_kl']):
+            kl_score = min(metrics['histogram_kl'] / 10.0, 1.0)  # Normalize
+            score_components.append(kl_score)
+        
+        # L1 difference: higher = more different
+        if 'l1' in metrics:
+            l1_score = min(metrics['l1'] / 50.0, 1.0)  # Normalize (adjust based on data range)
+            score_components.append(l1_score)
+        
+        if not score_components:
+            return 0.5
+        
+        return np.mean(score_components)
+    
+    def _compute_texture_score(self, real_feats: Dict, fake_feats: Dict) -> float:
+        """Score based on texture/entropy differences"""
+        texture_keys = [k for k in real_feats.keys() if 'entropy' in k or 'energy' in k]
+        
+        if not texture_keys:
+            return 0.5
+        
+        differences = []
+        for key in texture_keys:
+            if key in fake_feats:
+                real_val = real_feats[key]
+                fake_val = fake_feats[key]
+                
+                # Relative difference for entropy/energy
+                diff = abs(real_val - fake_val) / (abs(real_val) + 1e-10)
+                differences.append(min(diff, 1.0))
+        
+        if not differences:
+            return 0.5
+        
+        return np.mean(differences)
+    
+    def _make_decision(self, score: float) -> Tuple[str, str]:
+        """Convert score to decision with confidence"""
+        if score >= 70:
+            return "FAKE", "HIGH"
+        elif score >= 55:
+            return "FAKE", "MEDIUM"
+        elif score >= 45:
+            return "INCONCLUSIVE", "LOW"
+        elif score >= 30:
+            return "REAL", "MEDIUM"
+        else:
+            return "REAL", "HIGH"
+
+
+# ============================================================================
+# VISUALIZATION 
 # ============================================================================
 
 class ComprehensiveVisualizer:
     """Create comprehensive visualizations combining both approaches"""
     
-    def __init__(self, figsize: Tuple[int, int] = (18, 10)):
+    def __init__(self, figsize: Tuple[int, int] = (20, 12)):
         self.figsize = figsize
-    
+
     def create_comprehensive_comparison(self, real_img: np.ndarray, fake_img: np.ndarray,
                                        real_gradients: Dict, fake_gradients: Dict,
-                                       comparison_results: Dict,
+                                       comparison_results: Dict, detection_scores: Dict,
                                        save_path: Optional[str] = None) -> plt.Figure:
         """Create comprehensive visualization with multiple panels"""
         
-        # Create figure with subplots
-        fig = plt.figure(figsize=self.figsize)
+        # Create figure with subplots - Reduced from 4 rows to 2 rows
+        fig = plt.figure(figsize=(20, 6))  # Reduced height from 12 to 6
         
-        # Define grid layout
-        gs = fig.add_gridspec(3, 4, hspace=0.3, wspace=0.3)
+        # Define grid layout - Changed from 4,6 to 2,6
+        gs = fig.add_gridspec(2, 6, hspace=0.3, wspace=0.3)
         
         # 1. Original Images
-        ax1 = fig.add_subplot(gs[0, 0])
+        ax1 = fig.add_subplot(gs[0, :2])
         ax1.imshow(real_img.astype(np.uint8))
         ax1.set_title('Real Image', fontsize=10, fontweight='bold')
         ax1.axis('off')
         
-        ax2 = fig.add_subplot(gs[0, 1])
+        ax2 = fig.add_subplot(gs[0, 2:4])
         ax2.imshow(fake_img.astype(np.uint8))
         ax2.set_title('AI-Generated Image', fontsize=10, fontweight='bold')
         ax2.axis('off')
@@ -330,12 +502,12 @@ class ComprehensiveVisualizer:
         fake_grad = np.mean(list(fake_gradients.values()), axis=0) \
                     if len(fake_gradients) > 1 else list(fake_gradients.values())[0]
         
-        ax3 = fig.add_subplot(gs[0, 2])
+        ax3 = fig.add_subplot(gs[0, 4])
         ax3.imshow(normalize_for_vis(real_grad), cmap='hot')
         ax3.set_title('Real Gradients', fontsize=9)
         ax3.axis('off')
         
-        ax4 = fig.add_subplot(gs[0, 3])
+        ax4 = fig.add_subplot(gs[0, 5])
         ax4.imshow(normalize_for_vis(fake_grad), cmap='hot')
         ax4.set_title('Fake Gradients', fontsize=9)
         ax4.axis('off')
@@ -362,7 +534,7 @@ class ComprehensiveVisualizer:
             ax7.axis('off')
         
         # 5. Histogram Comparison
-        ax8 = fig.add_subplot(gs[1, 3])
+        ax8 = fig.add_subplot(gs[1, 3:5])
         real_hist, bins = np.histogram(real_grad.flatten(), bins=50, density=True)
         fake_hist, _ = np.histogram(fake_grad.flatten(), bins=bins, density=True)
         ax8.plot(bins[:-1], real_hist, alpha=0.7, label='Real', linewidth=2)
@@ -374,19 +546,33 @@ class ComprehensiveVisualizer:
         ax8.grid(True, alpha=0.3)
         
         # 6. Statistical Comparison Bar Chart
-        ax9 = fig.add_subplot(gs[2, :2])
+        ax9 = fig.add_subplot(gs[1, 5])
         stats_to_plot = ['mean', 'std', 'entropy', 'skewness']
         real_stats = []
         fake_stats = []
         
+        print("\nStatistical Values Used for Comparison Bar Chart (Averaged RGB):")
+
         for stat in stats_to_plot:
-            # Average across channels if multiple
-            real_val = np.mean([comparison_results.get(f'channel_{ch}', {}).get(stat, {}).get('real', 0) 
-                              for ch in range(3)])
-            fake_val = np.mean([comparison_results.get(f'channel_{ch}', {}).get(stat, {}).get('fake', 0) 
-                              for ch in range(3)])
+            real_vals = [
+                comparison_results.get(f'channel_{ch}', {}).get(stat, {}).get('real', 0)
+                for ch in range(3)
+            ]
+            fake_vals = [
+                comparison_results.get(f'channel_{ch}', {}).get(stat, {}).get('fake', 0)
+                for ch in range(3)
+            ]
+
+            real_val = np.mean(real_vals)
+            fake_val = np.mean(fake_vals)
+
+            print(f"  {stat.upper()}:")
+            print(f"    REAL: {real_val:.4f} (channels: {[round(v,4) for v in real_vals]})")
+            print(f"    FAKE: {fake_val:.4f} (channels: {[round(v,4) for v in fake_vals]})")
+
             real_stats.append(real_val)
             fake_stats.append(fake_val)
+
         
         x = np.arange(len(stats_to_plot))
         width = 0.35
@@ -399,37 +585,8 @@ class ComprehensiveVisualizer:
         ax9.legend()
         ax9.grid(True, alpha=0.3, axis='y')
         
-        # 7. Metrics Summary Table
-        ax10 = fig.add_subplot(gs[2, 2:])
-        ax10.axis('off')
-        
-        # Create metrics table
-        table_data = []
-        for metric_name, metric_value in comparison_results.items():
-            if isinstance(metric_value, dict) and 'absolute_diff' in metric_value:
-                table_data.append([
-                    metric_name,
-                    f"{metric_value.get('real', 0):.3f}",
-                    f"{metric_value.get('fake', 0):.3f}",
-                    f"{metric_value.get('absolute_diff', 0):.3f}",
-                    f"{metric_value.get('percent_diff', 0):.1f}%"
-                ])
-        
-        # Limit table size
-        table_data = table_data[:15]
-        
-        if table_data:
-            table = ax10.table(cellText=table_data,
-                              colLabels=['Metric', 'Real', 'Fake', 'Abs Diff', '% Diff'],
-                              cellLoc='center',
-                              loc='center',
-                              colWidths=[0.25, 0.15, 0.15, 0.15, 0.15])
-            table.auto_set_font_size(False)
-            table.set_fontsize(8)
-            table.scale(1, 1.5)
-        
         # Add overall title
-        fig.suptitle('Comprehensive Gradient Analysis: Real vs Fake Images', 
+        fig.suptitle('Real Vs Fake Image Analysis', 
                     fontsize=16, fontweight='bold', y=0.98)
         
         plt.tight_layout()
@@ -442,7 +599,7 @@ class ComprehensiveVisualizer:
 
 
 # ============================================================================
-# PART 5: MAIN PROCESSING PIPELINE (without scoring system)
+# PROCESSING PIPELINE 
 # ============================================================================
 
 class ComprehensiveDetectionPipeline:
@@ -463,6 +620,7 @@ class ComprehensiveDetectionPipeline:
             gradient_methods=self.gradient_methods
         )
         self.metrics_calculator = ComparisonMetrics()
+        self.detection_scorer = DetectionScorer()
         self.visualizer = ComprehensiveVisualizer()
         
         # Create output directory
@@ -504,6 +662,27 @@ class ComprehensiveDetectionPipeline:
                 'gx_fake': gx_fake,
                 'gy_fake': gy_fake
             })
+
+            # --------------------------------------------------
+        # PRINT GRADIENT VALUES USED FOR VISUALIZATION
+        # --------------------------------------------------
+        print("\nGradient Values Used for Plotting (Sobel Magnitude):")
+
+        real_mag = real_gradients['mag_real']
+        fake_mag = fake_gradients['mag_fake']
+
+        print("  REAL IMAGE:")
+        print(f"    Mean: {np.mean(real_mag):.4f}")
+        print(f"    Std:  {np.std(real_mag):.4f}")
+        print(f"    Min:  {np.min(real_mag):.4f}")
+        print(f"    Max:  {np.max(real_mag):.4f}")
+
+        print("  FAKE IMAGE:")
+        print(f"    Mean: {np.mean(fake_mag):.4f}")
+        print(f"    Std:  {np.std(fake_mag):.4f}")
+        print(f"    Min:  {np.min(fake_mag):.4f}")
+        print(f"    Max:  {np.max(fake_mag):.4f}")
+
         
         # Compute comparison metrics
         print("  Computing comparison metrics...")
@@ -532,6 +711,12 @@ class ComprehensiveDetectionPipeline:
             
             comparison_results[f'channel_{i}'] = channel_results
         
+        # Compute detection score
+        print("  Computing detection score...")
+        detection_scores = self.detection_scorer.compute_detection_score(
+            real_features, fake_features, comparison_metrics
+        )
+        
         # Generate pair name if not provided
         if pair_name is None:
             pair_name = f"{Path(real_path).stem}_{Path(fake_path).stem}"
@@ -542,7 +727,7 @@ class ComprehensiveDetectionPipeline:
         self.visualizer.create_comprehensive_comparison(
             real_img, fake_img,
             real_gradients, fake_gradients,
-            comparison_results,
+            comparison_results, detection_scores,
             save_path=str(vis_path)
         )
         
@@ -555,17 +740,19 @@ class ComprehensiveDetectionPipeline:
             'fake_features': fake_features,
             'comparison_metrics': comparison_metrics,
             'comparison_results': comparison_results,
-            'visualization_path': str(vis_path)
+            'detection_scores': detection_scores,
+            'visualization_path': str(vis_path),
+            'decision': detection_scores['decision'],
+            'confidence': detection_scores['confidence'],
+            'overall_score': detection_scores['overall_score']
         }
         
         # Print summary
         print(f"\n  Results for {pair_name}:")
+        print(f"    Decision: {detection_scores['decision']}")
+        print(f"    Confidence: {detection_scores['confidence']}")
+        print(f"    Overall Score: {detection_scores['overall_score']:.1f}/100")
         print(f"    Visualization saved to: {vis_path}")
-        print(f"\n  Key Metrics:")
-        print(f"    SSIM: {comparison_metrics.get('ssim', 'N/A'):.4f}")
-        print(f"    Cosine Similarity: {comparison_metrics.get('cosine_similarity', 'N/A'):.4f}")
-        print(f"    L1 Difference: {comparison_metrics.get('l1', 'N/A'):.4f}")
-        print(f"    KL Divergence: {comparison_metrics.get('histogram_kl', 'N/A'):.4f}")
         
         return results
     
@@ -587,13 +774,17 @@ class ComprehensiveDetectionPipeline:
                     'pair_name': results['pair_name'],
                     'real_path': results['real_path'],
                     'fake_path': results['fake_path'],
+                    'decision': results['decision'],
+                    'confidence': results['confidence'],
+                    'overall_score': results['overall_score'],
+                    'gradient_score': results['detection_scores'].get('gradient_score', 0) * 100,
+                    'color_score': results['detection_scores'].get('color_score', 0) * 100,
+                    'comparison_score': results['detection_scores'].get('comparison_score', 0) * 100,
+                    'texture_score': results['detection_scores'].get('texture_score', 0) * 100,
                     'ssim': results['comparison_metrics'].get('ssim', np.nan),
                     'cosine_similarity': results['comparison_metrics'].get('cosine_similarity', np.nan),
                     'histogram_kl': results['comparison_metrics'].get('histogram_kl', np.nan),
-                    'l1_diff': results['comparison_metrics'].get('l1', np.nan),
-                    'l2_diff': results['comparison_metrics'].get('l2', np.nan),
-                    'mean_diff': results['comparison_metrics'].get('mean_diff', np.nan),
-                    'pearson_corr': results['comparison_metrics'].get('pearson_corr', np.nan)
+                    'l1_diff': results['comparison_metrics'].get('l1', np.nan)
                 }
                 
                 all_results.append(csv_row)
@@ -614,16 +805,16 @@ class ComprehensiveDetectionPipeline:
         # Print summary statistics
         print("\nBatch Summary Statistics:")
         print(f"Total pairs processed: {len(all_results)}")
-        print(f"Average SSIM: {df['ssim'].mean():.4f} ± {df['ssim'].std():.4f}")
-        print(f"Average Cosine Similarity: {df['cosine_similarity'].mean():.4f} ± {df['cosine_similarity'].std():.4f}")
-        print(f"Average KL Divergence: {df['histogram_kl'].mean():.4f} ± {df['histogram_kl'].std():.4f}")
-        print(f"Average L1 Difference: {df['l1_diff'].mean():.4f} ± {df['l1_diff'].std():.4f}")
+        print(f"Fake detections: {len(df[df['decision'] == 'FAKE'])}")
+        print(f"Real detections: {len(df[df['decision'] == 'REAL'])}")
+        print(f"Inconclusive: {len(df[df['decision'] == 'INCONCLUSIVE'])}")
+        print(f"Average score: {df['overall_score'].mean():.1f} ± {df['overall_score'].std():.1f}")
         
         return df
 
 
 # ============================================================================
-# PART 6: CLI INTERFACE (from provided code - enhanced)
+# CLI INTERFACE 
 # ============================================================================
 
 def load_pairs_from_csv(csv_path: str) -> List[Tuple[str, str]]:
@@ -637,24 +828,24 @@ def load_pairs_from_csv(csv_path: str) -> List[Tuple[str, str]]:
 def parse_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description='Comprehensive Gradient Analysis: Real vs Fake Images',
+        description='Comprehensive Gradient-Based Fake Image Detection System',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
+Example Usages:
   # Single pair analysis
-  python gradient_analysis.py --real real.jpg --fake fake.jpg
+  python detect_fake.py --real real.jpg --fake fake.jpg
   
   # Batch processing from CSV
-  python gradient_analysis.py --csv pairs.csv
+  python detect_fake.py --csv pairs.csv
   
   # Custom output directory
-  python gradient_analysis.py --real real.jpg --fake fake.jpg --outdir ./results
+  python detect_fake.py --real real.jpg --fake fake.jpg --outdir ./my_results
   
   # Specific color spaces
-  python gradient_analysis.py --real real.jpg --fake fake.jpg --colorspaces RGB HSV
+  python detect_fake.py --real real.jpg --fake fake.jpg --colorspaces RGB HSV
   
   # Debug mode
-  python gradient_analysis.py --real real.jpg --fake fake.jpg --debug
+  python detect_fake.py --real real.jpg --fake fake.jpg --debug
         """
     )
     
@@ -669,8 +860,8 @@ Examples:
                        help='Fake image path (required for single pair mode)')
     
     # Processing options
-    parser.add_argument('--outdir', type=str, default='gradient_analysis_results',
-                       help='Output directory for results (default: gradient_analysis_results)')
+    parser.add_argument('--outdir', type=str, default='detection_results',
+                       help='Output directory for results (default: detection_results)')
     parser.add_argument('--colorspaces', type=str, nargs='+',
                        default=['RGB', 'HSV', 'LAB'],
                        help='Color spaces to analyze (default: RGB HSV LAB)')
@@ -695,7 +886,8 @@ def main():
     
     # Validate arguments
     if args.real and not args.fake:
-        parser.error("--real requires --fake")
+        #parser.error("--real requires --fake")
+        print("Error: --real requires --fake")
     
     # Load pairs
     if args.csv:
@@ -720,7 +912,9 @@ def main():
         # Print detailed results
         if args.debug:
             print("\nDetailed Results:")
-            print(f"\nComparison Metrics:")
+            print(f"Decision: {results['decision']} ({results['confidence']} confidence)")
+            print(f"Overall Score: {results['overall_score']:.1f}/100")
+            print(f"\nKey Metrics:")
             for metric_name, metric_value in results['comparison_metrics'].items():
                 if isinstance(metric_value, (int, float)):
                     print(f"  {metric_name}: {metric_value:.4f}")
@@ -733,25 +927,24 @@ def main():
         # Generate summary report
         summary_path = Path(args.outdir) / "summary_report.txt"
         with open(summary_path, 'w') as f:
-            f.write("GRADIENT ANALYSIS SUMMARY REPORT\n")
+            f.write("FAKE IMAGE DETECTION SUMMARY REPORT\n")
             f.write("=" * 50 + "\n\n")
-            f.write(f"Total pairs analyzed: {len(df)}\n\n")
-            f.write("Average Metrics:\n")
-            f.write(f"  SSIM: {df['ssim'].mean():.4f} ± {df['ssim'].std():.4f}\n")
-            f.write(f"  Cosine Similarity: {df['cosine_similarity'].mean():.4f} ± {df['cosine_similarity'].std():.4f}\n")
-            f.write(f"  KL Divergence: {df['histogram_kl'].mean():.4f} ± {df['histogram_kl'].std():.4f}\n")
-            f.write(f"  L1 Difference: {df['l1_diff'].mean():.4f} ± {df['l1_diff'].std():.4f}\n")
-            f.write(f"  L2 Difference: {df['l2_diff'].mean():.4f} ± {df['l2_diff'].std():.4f}\n")
-            f.write(f"\nMost similar pair (highest SSIM): {df.loc[df['ssim'].idxmax(), 'pair_name']} "
-                   f"(SSIM: {df['ssim'].max():.4f})\n")
-            f.write(f"Most different pair (lowest SSIM): {df.loc[df['ssim'].idxmin(), 'pair_name']} "
-                   f"(SSIM: {df['ssim'].min():.4f})\n")
+            f.write(f"Total pairs analyzed: {len(df)}\n")
+            f.write(f"Fake detections: {len(df[df['decision'] == 'FAKE'])}\n")
+            f.write(f"Real detections: {len(df[df['decision'] == 'REAL'])}\n")
+            f.write(f"Inconclusive: {len(df[df['decision'] == 'INCONCLUSIVE'])}\n")
+            f.write(f"\nAverage detection score: {df['overall_score'].mean():.1f}\n")
+            f.write(f"Score standard deviation: {df['overall_score'].std():.1f}\n")
+            f.write(f"\nBest performing pair: {df.loc[df['overall_score'].idxmax(), 'pair_name']} "
+                   f"(score: {df['overall_score'].max():.1f})\n")
+            f.write(f"Worst performing pair: {df.loc[df['overall_score'].idxmin(), 'pair_name']} "
+                   f"(score: {df['overall_score'].min():.1f})\n")
         
         print(f"\nSummary report saved to: {summary_path}")
 
 
 # ============================================================================
-# PART 7: EXAMPLE USAGE AND QUICK START
+# QUICK START
 # ============================================================================
 
 def quick_start_example():
@@ -759,34 +952,31 @@ def quick_start_example():
     print("""
 QUICK START GUIDE:
 ------------------
-1. Install required packages:
-   pip install numpy opencv-python matplotlib scikit-image scikit-learn pandas tqdm scipy
+1. For single pair analysis:
+   python detect_fake.py --real /path/to/real.jpg --fake /path/to/fake.jpg
 
-2. For single pair analysis:
-   python gradient_analysis.py --real /path/to/real.jpg --fake /path/to/fake.jpg
-
-3. For batch processing:
+2. For batch processing:
    Create a CSV file (pairs.csv) with columns: real,fake
    Then run:
-   python gradient_analysis.py --csv pairs.csv
+   python detect_fake.py --csv pairs.csv
 
-4. Advanced options:
-   python gradient_analysis.py --real real.jpg --fake fake.jpg \\
+3. Other options:
+   python detect_fake.py --real real.jpg --fake fake.jpg \\
         --colorspaces RGB LAB \\
         --gradient-methods sobel laplacian \\
         --outdir ./my_results
 
 OUTPUT FILES:
 -------------
-- gradient_analysis_results/     # Output directory
-  ├── pair_analysis.png         # Visualization
-  ├── batch_results.csv         # Batch results
-  └── summary_report.txt        # Summary statistics
+- detection_results/              # Output directory
+  ├── pair_analysis.png          # Visualization
+  ├── batch_results.csv          # Batch results
+  └── summary_report.txt         # Summary statistics
     """)
 
 
 # ============================================================================
-# MAIN EXECUTION
+# EXECUTION
 # ============================================================================
 
 if __name__ == "__main__":
