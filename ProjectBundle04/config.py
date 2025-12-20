@@ -1,0 +1,9 @@
+# config.py
+
+IMAGE_SIZE = (256, 256)
+DEFAULT_CUTOFF = 30
+
+FIGSIZE_SINGLE = (5, 5)
+FIGSIZE_TRIPLE = (12, 4)
+
+IMAGE_DIR = "data/images"
